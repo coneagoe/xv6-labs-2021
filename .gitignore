@@ -5,6 +5,8 @@ _*
 *.asm
 *.sym
 *.img
+*.out
+*.swp
 vectors.S
 bootblock
 entryother
@@ -22,3 +24,5 @@ xv6.out*
 submissions/
 ph
 barrier
+filelist
+.tags

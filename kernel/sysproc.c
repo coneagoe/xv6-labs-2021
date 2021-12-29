@@ -6,6 +6,13 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
+
+extern uint64 free_byte_count(void);
+extern uint64 not_unused_proc_count(void);
+
+#define offsetof(TYPE, MEMBER)  ((uint64) &((TYPE *)0)->MEMBER)
+
 
 uint64
 sys_exit(void)
@@ -95,3 +102,38 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64
+sys_trace(void)
+{
+  int trace_mask;
+
+  if (argint(0, &trace_mask) < 0)
+    return -1;
+
+  myproc()->trace_mask = trace_mask;
+  return 0;
+}
+
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 info, freemem, nproc;
+
+  if (argaddr(0, &info) < 0)
+    return -1;
+
+  freemem = free_byte_count();
+  nproc = not_unused_proc_count();
+
+  if (copyout(myproc()->pagetable, info, (char *)&freemem, sizeof(freemem)) < 0 ||
+      copyout(myproc()->pagetable, info + offsetof(struct sysinfo, nproc), (char *)&nproc, sizeof(nproc)) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+
