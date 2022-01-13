@@ -1,18 +1,13 @@
 #include "types.h"
 #include "riscv.h"
+#include "param.h"
 #include "defs.h"
 #include "date.h"
-#include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
-#include "sysinfo.h"
 
-extern uint64 free_byte_count(void);
-extern uint64 not_unused_proc_count(void);
-
-#define offsetof(TYPE, MEMBER)  ((uint64) &((TYPE *)0)->MEMBER)
-
+extern pte_t * walk(pagetable_t pagetable, uint64 va, int alloc);
 
 uint64
 sys_exit(void)
@@ -53,6 +48,7 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
+
   addr = myproc()->sz;
   if(growproc(n) < 0)
     return -1;
@@ -64,6 +60,7 @@ sys_sleep(void)
 {
   int n;
   uint ticks0;
+
 
   if(argint(0, &n) < 0)
     return -1;
@@ -79,6 +76,48 @@ sys_sleep(void)
   release(&tickslock);
   return 0;
 }
+
+
+#ifdef LAB_PGTBL
+
+#define MAX_PAGE_COUNT 32
+
+int
+sys_pgaccess(void)
+{
+  uint64 va, result;
+  int page_count, tmp = 0;
+  pte_t *pte;
+  pagetable_t pagetable;
+
+  if (argaddr(0, &va) < 0)
+    return -1;
+
+  if (argint(1, &page_count) < 0)
+    return -1;
+
+  if (argaddr(2, &result) < 0)
+    return -1;
+
+  if (page_count > MAX_PAGE_COUNT)
+    page_count = MAX_PAGE_COUNT;
+
+  pagetable = myproc()->pagetable;
+
+  for (int i = 0; i < page_count; i++, va += PGSIZE) {
+    pte = walk(pagetable, va, 0);
+    if (pte == 0)
+      return -1;
+
+    if (*pte & PTE_A) {
+      tmp |= 1 << i;
+      *pte &= ~PTE_A;
+    }
+  }
+
+  return copyout(pagetable, result, (char *)&tmp, sizeof(tmp));
+}
+#endif
 
 uint64
 sys_kill(void)
@@ -102,38 +141,3 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
-
-
-uint64
-sys_trace(void)
-{
-  int trace_mask;
-
-  if (argint(0, &trace_mask) < 0)
-    return -1;
-
-  myproc()->trace_mask = trace_mask;
-  return 0;
-}
-
-
-uint64
-sys_sysinfo(void)
-{
-  uint64 info, freemem, nproc;
-
-  if (argaddr(0, &info) < 0)
-    return -1;
-
-  freemem = free_byte_count();
-  nproc = not_unused_proc_count();
-
-  if (copyout(myproc()->pagetable, info, (char *)&freemem, sizeof(freemem)) < 0 ||
-      copyout(myproc()->pagetable, info + offsetof(struct sysinfo, nproc), (char *)&nproc, sizeof(nproc)) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-

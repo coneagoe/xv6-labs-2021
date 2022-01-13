@@ -45,7 +45,7 @@ kvmmake(void)
 
   // map kernel stacks
   proc_mapstacks(kpgtbl);
-  
+
   return kpgtbl;
 }
 
@@ -142,7 +142,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 
   if(size == 0)
     panic("mappages: size");
-  
+
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
@@ -333,7 +333,7 @@ void
 uvmclear(pagetable_t pagetable, uint64 va)
 {
   pte_t *pte;
-  
+
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     panic("uvmclear");
@@ -431,4 +431,42 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+inline void print_pte(char level, int index, pte_t *pte)
+{
+  for (int i = 0; i <= level; i++) {
+    if (i != 0)
+      printf(" ");
+
+    printf("..");
+  }
+
+  printf("%d: pte %p pa %p\n", index, *pte, PTE2PA(*pte));
+}
+
+
+void
+recurse_pagetble(pagetable_t pagetable, char level)
+{
+  for(int i = 0; i < 512; i++) {
+    pte_t *pte = &pagetable[i];
+    if (*pte & PTE_V) {
+      print_pte(level, i, pte);
+
+      if (level + 1 >= 3)
+        continue;
+
+      recurse_pagetble((pagetable_t)PTE2PA(*pte), level + 1);
+    }
+  }
+}
+
+
+void
+vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", pagetable);
+  recurse_pagetble(pagetable, 0);
 }
